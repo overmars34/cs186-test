@@ -1,15 +1,9 @@
 package edu.berkeley.cs186.database.index;
-import static org.junit.Assert.assertEquals;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-
+import edu.berkeley.cs186.database.databox.DataBox;
+import edu.berkeley.cs186.database.databox.IntDataBox;
+import edu.berkeley.cs186.database.databox.Type;
+import edu.berkeley.cs186.database.table.RecordId;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -18,10 +12,11 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 import org.junit.rules.Timeout;
 
-import edu.berkeley.cs186.database.databox.DataBox;
-import edu.berkeley.cs186.database.databox.IntDataBox;
-import edu.berkeley.cs186.database.databox.Type;
-import edu.berkeley.cs186.database.table.RecordId;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+
+import static org.junit.Assert.assertEquals;
 
 public class TestBPlusTree {
     public static final String filename = "TestBPlusTree";

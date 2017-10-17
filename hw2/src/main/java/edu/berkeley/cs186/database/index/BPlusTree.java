@@ -1,18 +1,18 @@
 package edu.berkeley.cs186.database.index;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Optional;
-
+import com.sun.prism.impl.Disposer;
 import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.databox.Type;
 import edu.berkeley.cs186.database.io.Page;
 import edu.berkeley.cs186.database.io.PageAllocator;
 import edu.berkeley.cs186.database.table.RecordId;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * A persistent B+ tree.
@@ -120,7 +120,16 @@ public class BPlusTree {
 
     /** Read a B+ tree that was previously serialized to filename. */
     public BPlusTree(String filename) {
-      throw new UnsupportedOperationException("TODO(hw2): implement.");
+      PageAllocator allocator = new PageAllocator(filename, false);
+      Page headerPage = allocator.fetchPage(0);
+      ByteBuffer headerBuf = headerPage.getByteBuffer();
+      Type keySchema = Type.fromBytes(headerBuf);
+      int order = headerBuf.getInt();
+      int rootPage = headerBuf.getInt();
+      metadata = new BPlusTreeMetadata(allocator, keySchema, order);
+
+      // Construct the root.
+      root = BPlusNode.fromBytes(metadata, rootPage);
     }
 
     // Core API ////////////////////////////////////////////////////////////////
@@ -139,7 +148,7 @@ public class BPlusTree {
      */
     public Optional<RecordId> get(DataBox key) {
       typecheck(key);
-      throw new UnsupportedOperationException("TODO(hw2): implement.");
+      return root.get(key).getKey(key);
     }
 
     /**
@@ -187,8 +196,7 @@ public class BPlusTree {
      * memory will receive 0 points.
      */
     public Iterator<RecordId> scanAll() {
-      throw new UnsupportedOperationException("TODO(hw2): implement.");
-      // TODO(hw2): Return a BPlusTreeIterator.
+      return new BPlusTreeIterator();
     }
 
     /**
@@ -217,8 +225,9 @@ public class BPlusTree {
      */
     public Iterator<RecordId> scanGreaterEqual(DataBox key) {
       typecheck(key);
-      throw new UnsupportedOperationException("TODO(hw2): implement.");
-      // TODO(hw2): Return a BPlusTreeIterator.
+
+      LeafNode rootLeaf = root.get(key);
+      return new BPlusTreeIterator(rootLeaf, rootLeaf.scanGreaterEqual(key));
     }
 
     /**
@@ -228,12 +237,28 @@ public class BPlusTree {
      *   BPlusTree tree = new BPlusTree("t.txt", Type.intType(), 4);
      *   DataBox key = new IntDataBox(42);
      *   RecordId rid = new RecordId(42, (short) 42);
-     *   tree.put(key, rid); // Sucess :)
+     *   tree.put(key, rid); // Success :)
      *   tree.put(key, rid); // BPlusTreeException :(
      */
     public void put(DataBox key, RecordId rid) throws BPlusTreeException {
       typecheck(key);
-      throw new UnsupportedOperationException("TODO(hw2): implement.");
+      Optional<Pair<DataBox, Integer>> res = root.put(key, rid);
+
+      if (res.isPresent()) {
+        // The root split. Need to go one level higher with a new root
+
+        List<DataBox> keys = new ArrayList<DataBox>() {{
+          add(res.get().getFirst()); // Split key from previous root
+        }};
+
+        List<Integer> children = new ArrayList<Integer>() {{
+          add(root.getPage().getPageNum()); // Root's existing page (left of split)
+          add(res.get().getSecond()); // The newly created page (right of split)
+        }};
+
+        root = new InnerNode(metadata, keys, children);
+        writeHeader(headerPage.getByteBuffer());
+      }
     }
 
     /**
@@ -250,7 +275,7 @@ public class BPlusTree {
      */
     public void remove(DataBox key) {
       typecheck(key);
-      throw new UnsupportedOperationException("TODO(hw2): implement.");
+      root.remove(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
@@ -316,16 +341,32 @@ public class BPlusTree {
 
     // Iterator ////////////////////////////////////////////////////////////////
     private class BPlusTreeIterator implements Iterator<RecordId> {
-      // TODO(hw2): Add whatever fields and constructors you want here.
+      private Iterator<RecordId> iter;
+      private LeafNode leaf;
+
+      public BPlusTreeIterator() {
+        this(root.getLeftmostLeaf(), null);
+      }
+
+      public BPlusTreeIterator(LeafNode leaf, Iterator<RecordId> iter) {
+        this.leaf = leaf;
+        this.iter = iter == null ? leaf.scanAll() : iter;
+      }
 
       @Override
       public boolean hasNext() {
-        throw new UnsupportedOperationException("TODO(hw2): implement.");
+        return iter.hasNext() || leaf.getRightSibling().isPresent();
       }
 
       @Override
       public RecordId next() {
-        throw new UnsupportedOperationException("TODO(hw2): implement.");
+        if (iter.hasNext()) {
+          return iter.next();
+        } else {
+          leaf = leaf.getRightSibling().get();
+          iter = leaf.scanAll();
+          return next();
+        }
       }
     }
 }

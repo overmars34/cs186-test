@@ -1,17 +1,14 @@
 package edu.berkeley.cs186.database.index;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-
 import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.databox.Type;
 import edu.berkeley.cs186.database.io.Page;
 import edu.berkeley.cs186.database.table.RecordId;
+
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * A leaf of a B+ tree. Every leaf in a B+ tree of order d stores between d and
@@ -133,26 +130,61 @@ class LeafNode extends BPlusNode {
   // See BPlusNode.get.
   @Override
   public LeafNode get(DataBox key) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    return getLeftmostLeaf();
   }
 
   // See BPlusNode.getLeftmostLeaf.
   @Override
   public LeafNode getLeftmostLeaf() {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    return this;
   }
 
   // See BPlusNode.put.
   @Override
   public Optional<Pair<DataBox, Integer>> put(DataBox key, RecordId rid)
       throws BPlusTreeException {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+
+    if (getKey(key).isPresent()) {
+      throw new BPlusTreeException("Duplicate key not allowed");
+    }
+
+    // Find the position in keys to add this new key (asc order)
+    int idx = 0;
+    Optional<Pair<DataBox, Integer>> out = Optional.empty();
+    for ( ; idx < keys.size() && key.compareTo(keys.get(idx)) > 0; idx++)
+      ;
+
+    keys.add(idx, key);
+    rids.add(idx, rid);
+
+    if (getKeys().size() > 2 * metadata.getOrder()) {
+      // The page is (over) full, split on skey and create a new page
+
+      // d elements in LEFT d+1 in RIGHT
+      int splitidx = (int) Math.floor(keys.size() / 2);
+      List<DataBox> rkeys = keys.subList(splitidx, keys.size());
+      List<RecordId> rrids = rids.subList(splitidx, rids.size());
+      LeafNode snode = new LeafNode(metadata, rkeys, rrids, rightSibling);
+
+      // Remove the keys from this node and reassign the sibling
+      keys = keys.subList(0, splitidx);
+      rids = rids.subList(0, splitidx);
+      rightSibling = Optional.of(snode.getPage().getPageNum());
+
+      // rkeys[0] should be the smallest key in this LeafNode since sorted
+      out = Optional.of(new Pair<>(rkeys.get(0), snode.getPage().getPageNum()));
+    }
+
+    sync();
+    return out;
   }
 
   // See BPlusNode.remove.
   @Override
   public void remove(DataBox key) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    rids.remove(keys.indexOf(key));
+    keys.remove(key);
+    sync();
   }
 
   // Iterators /////////////////////////////////////////////////////////////////
@@ -328,7 +360,26 @@ class LeafNode extends BPlusNode {
    * meta.getAllocator().
    */
   public static LeafNode fromBytes(BPlusTreeMetadata metadata, int pageNum) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    Page page = metadata.getAllocator().fetchPage(pageNum);
+    ByteBuffer buf = page.getByteBuffer();
+
+    assert buf.get() == 1 : "Expected leaf node (MSB 1)";
+    int siblingPtr = buf.getInt();
+    int numPairs = buf.getInt();
+    Optional<Integer> sibling =
+        Optional.ofNullable(siblingPtr == -1 ? null : siblingPtr);
+
+    List<DataBox> keys = new ArrayList<>();
+    List<RecordId> rid = new ArrayList<>();
+
+    for (int i = 0; i < numPairs; ++i) {
+      keys.add(DataBox.fromBytes(buf, metadata.getKeySchema()));
+      int pageNumc = buf.getInt();
+      short entry = buf.getShort();
+      rid.add(new RecordId(pageNumc, entry));
+    }
+
+    return new LeafNode(metadata, pageNum, keys, rid, sibling);
   }
 
   // Builtins //////////////////////////////////////////////////////////////////

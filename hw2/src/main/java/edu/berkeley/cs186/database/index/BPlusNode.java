@@ -1,14 +1,12 @@
 package edu.berkeley.cs186.database.index;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
 import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.io.Page;
 import edu.berkeley.cs186.database.table.RecordId;
+
+import java.nio.ByteBuffer;
+import java.util.Optional;
 
 /**
  * An inner node or a leaf node. See InnerNode and LeafNode for more
@@ -19,7 +17,7 @@ abstract class BPlusNode {
   /**
    * n.get(k) returns the leaf node on which k may reside when queried from n.
    * For example, consider the following B+ tree (for brevity, only keys are
-   * shown; record ids are ommitted).
+   * shown; record ids are omitted).
    *
    *                               inner
    *                               +----+----+----+----+

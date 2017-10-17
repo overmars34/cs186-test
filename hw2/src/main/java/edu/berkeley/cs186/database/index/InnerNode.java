@@ -1,10 +1,8 @@
 package edu.berkeley.cs186.database.index;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Function;
 
 import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.databox.DataBox;
@@ -55,8 +53,10 @@ class InnerNode extends BPlusNode {
    */
   private InnerNode(BPlusTreeMetadata metadata, int pageNum, List<DataBox> keys,
                     List<Integer> children) {
-    assert(keys.size() <= 2 * metadata.getOrder());
-    assert(keys.size() + 1 == children.size());
+    assert keys.size() <= 2 * metadata.getOrder()
+        : "Too many keys. Expect " + keys.size() + "<=" + 2 * metadata.getOrder();
+    assert keys.size() + 1 == children.size()
+        : "Wrong number of keys. Want " + (children.size() - 1);
 
     this.metadata = metadata;
     this.page = metadata.getAllocator().fetchPage(pageNum);
@@ -69,26 +69,106 @@ class InnerNode extends BPlusNode {
   // See BPlusNode.get.
   @Override
   public LeafNode get(DataBox key) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    Function<InnerNode, BPlusNode> helper = (InnerNode node) -> {
+      int idx = 0;
+      DataBox cur = node.keys.get(idx);
+
+      while (key.compareTo(cur) > 0 || key.compareTo(cur) == 0) {
+        if (++idx == node.keys.size()) {
+          break;
+        }
+
+        cur = node.keys.get(idx);
+      }
+
+      return node.getChild(idx);
+    };
+
+    // Iteratively apply helper traverse function until we reach a LeafNode
+    BPlusNode cur = this;
+    while ((cur = helper.apply((InnerNode)cur)).getClass() == InnerNode.class)
+      ;
+
+    return (LeafNode)cur;
+  }
+
+  private int getNextIdx(DataBox key) {
+    int idx = 0;
+    DataBox cur = keys.get(idx);
+
+    while (key.compareTo(cur) > 0 || key.compareTo(cur) == 0) {
+      if (++idx == keys.size()) {
+        break;
+      }
+
+      cur = keys.get(idx);
+    }
+
+    return idx;
   }
 
   // See BPlusNode.getLeftmostLeaf.
   @Override
   public LeafNode getLeftmostLeaf() {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    BPlusNode child = this;
+
+    while (child.getClass() != LeafNode.class) {
+      child = ((InnerNode)child).getChild(0);
+    }
+
+    return (LeafNode) child;
   }
 
   // See BPlusNode.put.
   @Override
   public Optional<Pair<DataBox, Integer>> put(DataBox key, RecordId rid)
       throws BPlusTreeException {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+
+    BPlusNode child = getChild(getNextIdx(key));
+    Optional<Pair<DataBox, Integer>> cans = child.put(key, rid);
+    Optional<Pair<DataBox, Integer>> out = Optional.empty();
+
+    if (cans.isPresent()) {
+      // The child had to split
+
+      // Insert the child's data. Allow the node to go beyond capacity (we'll
+      // fix that in the lines that follow).
+      DataBox skey = cans.get().getFirst();
+      int i = 0;
+
+      for ( ; i < keys.size() && skey.compareTo(keys.get(i)) > 0; i++)
+        ;
+
+      keys.add(i, skey);
+      children.add(i+1, cans.get().getSecond());
+
+      if (keys.size() > 2 * metadata.getOrder()) {
+        // ... and we're at capacity so we need to split too
+        int kPivot = (int) Math.floor(keys.size() / 2);
+        int cPivot = (int) Math.floor(children.size() / 2);
+        DataBox newParent = keys.get(kPivot);
+
+        List<DataBox> newKeys = keys.subList(kPivot + 1, keys.size());
+        List<Integer> newChildren = children.subList(cPivot, children.size());
+
+        // Remove newly split-off keys / children from this node
+        keys = keys.subList(0, kPivot);
+        children = children.subList(0, cPivot);
+
+        InnerNode newNode = new InnerNode(metadata, newKeys, newChildren);
+        out = Optional.of(new Pair<>(newParent, newNode.getPage().getPageNum()));
+      }
+
+      sync();
+    }
+
+    return out;
   }
 
   // See BPlusNode.remove.
   @Override
   public void remove(DataBox key) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    get(key).remove(key);
   }
 
   // Helpers ///////////////////////////////////////////////////////////////////
@@ -317,6 +397,7 @@ class InnerNode extends BPlusNode {
     for (int i = 0; i < n + 1; ++i) {
       children.add(buf.getInt());
     }
+
     return new InnerNode(metadata, pageNum, keys, children);
   }
 
