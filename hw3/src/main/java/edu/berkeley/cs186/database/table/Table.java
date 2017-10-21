@@ -1,12 +1,9 @@
 package edu.berkeley.cs186.database.table;
 
-import java.util.Arrays;
+import java.util.*;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.TreeSet;
+import java.util.concurrent.DelayQueue;
 
 import edu.berkeley.cs186.database.DatabaseException;
 import edu.berkeley.cs186.database.common.ArrayBacktrackingIterator;
@@ -435,26 +432,40 @@ public class Table implements Iterable<Record>, Closeable {
    * should function.
    */
   public class RIDPageIterator implements BacktrackingIterator<RecordId> {
-    //member variables go here
+    private byte[] bitmap;
+    private int pageNum;
+    private short cur;
+    private short mark;
 
     public RIDPageIterator(Page page) {
-      throw new UnsupportedOperationException("hw3: TODO");
+      this.pageNum = page.getPageNum();
+      this.bitmap = getBitMap(page);
     }
 
     public boolean hasNext() {
-      throw new UnsupportedOperationException("hw3: TODO");
+      for (int i = cur; i < 8 * bitmap.length; i++) {
+        if (Bits.getBit(bitmap, i) == Bits.Bit.ONE) {
+          return true;
+        }
+      }
+
+      return false;
     }
 
     public RecordId next() {
-      throw new UnsupportedOperationException("hw3: TODO");
+      while (Bits.getBit(bitmap, cur) == Bits.Bit.ZERO) {
+        cur++;
+      }
+
+      return new RecordId(pageNum, cur++);
     }
 
     public void mark() {
-      throw new UnsupportedOperationException("hw3: TODO");
+      mark = (short) Math.max(0, (cur - 1));
     }
 
     public void reset() {
-      throw new UnsupportedOperationException("hw3: TODO");
+      cur = mark;
     }
   }
 
@@ -506,17 +517,10 @@ public class Table implements Iterable<Record>, Closeable {
   public class RIDBlockIterator implements BacktrackingIterator<RecordId> {
     private BacktrackingIterator<Page> block = null;
     private BacktrackingIterator<RecordId> blockIter = null;
-
     private BacktrackingIterator<RecordId> markedBlockIter = null;
-    private RecordId markedPrevRecordId = null;
-
-    private RecordId prevRecordId = null;
-    private RecordId nextRecordId = null;
 
     public RIDBlockIterator(BacktrackingIterator<Page> block) {
       this.block = block;
-      throw new UnsupportedOperationException("hw3: TODO"); //if you want to add anything to this constructor, feel free to
-
     }
 
     /**
@@ -553,11 +557,18 @@ public class Table implements Iterable<Record>, Closeable {
     }
 
     public boolean hasNext() {
-      throw new UnsupportedOperationException("hw3: TODO");
+      if (blockIter != null && blockIter.hasNext()) {
+        return true;
+      } else if(block.hasNext()) {
+        blockIter = new RIDPageIterator(block.next());
+        return hasNext();
+      } else {
+        return false;
+      }
     }
 
     public RecordId next() {
-      throw new UnsupportedOperationException("hw3: TODO");
+      return blockIter.next();
     }
 
     /**
@@ -567,14 +578,11 @@ public class Table implements Iterable<Record>, Closeable {
      * iterator of RecordIds.
      */
     public void mark() {
-      if (this.prevRecordId == null) {
-        return;
-      }
+      block.mark();
+      blockIter.mark();
 
-      this.block.mark();
-      this.blockIter.mark();
-      this.markedBlockIter = this.blockIter;
-      this.markedPrevRecordId = this.prevRecordId;
+      // Save the current blockIter
+      markedBlockIter = blockIter;
     }
 
     /**
@@ -585,24 +593,17 @@ public class Table implements Iterable<Record>, Closeable {
      * care is taken to ensure that we properly reset the block page iterator.
      */
     public void reset() {
-      if (this.markedPrevRecordId == null) {
-        return;
-      }
-      this.block.reset();
-      // We don't want to get the current page again
-      this.block.next();
-      this.blockIter = this.markedBlockIter;
-      this.blockIter.reset();
-      // If we're at the end of the block, we don't want to repeat the record
-      if (!this.block.hasNext()) {
-        this.blockIter.next();
-        if (this.blockIter.hasNext()) {
-          this.blockIter.reset();
-        }
-      }
+      // Restore the saved blockIter
+      blockIter = markedBlockIter;
 
-      this.prevRecordId = null;
-      this.nextRecordId = this.markedPrevRecordId;
+      block.reset();
+
+      // Don't want to get the same block again so just advance by one.
+      block.next();
+
+      // Also need to reset the saved blockIter since it could have been
+      // advanced after the mark()
+      blockIter.reset();
     }
   }
 

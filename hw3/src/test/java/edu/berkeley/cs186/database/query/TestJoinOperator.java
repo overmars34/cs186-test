@@ -167,6 +167,7 @@ public class TestJoinOperator {
 
 
   @Test(timeout=10000)
+
   public void testSimplePNLJOutputOrder() throws QueryPlanException, DatabaseException, IOException {
     File tempDir = tempFolder.newFolder("joinTest");
     Database d = new Database(tempDir.getAbsolutePath());
@@ -365,9 +366,6 @@ public class TestJoinOperator {
 
     assertEquals(288*288, numRecords);
   }
-
-
-
 
   @Test(timeout=10000)
   public void testBNLJDiffOutPutThanPNLJ() throws QueryPlanException, DatabaseException, IOException {

@@ -12,7 +12,7 @@ public class Bits {
    *   - getBit(0b10000000, 7) == ZERO
    *   - getBit(0b10000000, 0) == ONE
    *   - getBit(0b01000000, 1) == ONE
-   *   - getBit(0b00100000, 1) == ONE
+   *   - getBit(0b00100000, 2) == ONE
    */
   public static Bit getBit(byte b, int i) {
     assert(0 <= i && i < 8);
@@ -20,7 +20,7 @@ public class Bits {
   }
 
   /**
-   * Get the ith bit of a byte array where the 0th bit is the most significat
+   * Get the ith bit of a byte array where the 0th bit is the most significant
    * bit of the first byte. Some examples:
    *
    *   - getBit(new byte[]{0b10000000, 0b00000000}, 0) == ONE

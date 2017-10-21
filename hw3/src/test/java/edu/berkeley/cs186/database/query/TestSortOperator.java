@@ -1,28 +1,20 @@
 package edu.berkeley.cs186.database.query;
 
 import edu.berkeley.cs186.database.Database;
+import edu.berkeley.cs186.database.DatabaseException;
+import edu.berkeley.cs186.database.TestUtils;
+import edu.berkeley.cs186.database.table.Record;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import edu.berkeley.cs186.database.DatabaseException;
-import edu.berkeley.cs186.database.TestUtils;
-import edu.berkeley.cs186.database.databox.BoolDataBox;
-import edu.berkeley.cs186.database.databox.DataBox;
-import edu.berkeley.cs186.database.databox.FloatDataBox;
-import edu.berkeley.cs186.database.databox.IntDataBox;
-import edu.berkeley.cs186.database.databox.StringDataBox;
-import edu.berkeley.cs186.database.databox.Type;
-import edu.berkeley.cs186.database.table.Record;
-import edu.berkeley.cs186.database.table.Schema;
-
-import org.junit.rules.TemporaryFolder;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TestSortOperator {
 

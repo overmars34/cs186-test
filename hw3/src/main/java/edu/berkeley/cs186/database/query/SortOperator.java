@@ -2,11 +2,12 @@ package edu.berkeley.cs186.database.query;
 
 import edu.berkeley.cs186.database.Database;
 import edu.berkeley.cs186.database.DatabaseException;
+import edu.berkeley.cs186.database.common.BacktrackingIterator;
+import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.databox.DataBox;
+import edu.berkeley.cs186.database.io.Page;
 import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.Schema;
-import edu.berkeley.cs186.database.common.Pair;
-import edu.berkeley.cs186.database.io.Page;
 
 import java.util.*;
 
@@ -71,7 +72,17 @@ public class SortOperator  {
    * size of the buffer, but it is done this way for ease.
    */
   public Run sortRun(Run run) throws DatabaseException {
-    throw new UnsupportedOperationException("hw3: TODO");
+    Run r = new Run();
+
+    // Copy the run's iterator to a list
+    List<Record> records = new ArrayList<>();
+    run.iterator().forEachRemaining(records::add);
+
+    // Sort the list and add to the run
+    records.sort(comparator);
+    r.addRecords(records);
+
+    return r;
   }
 
 
@@ -85,8 +96,44 @@ public class SortOperator  {
    * sorting on currently unmerged from run i.
    */
   public Run mergeSortedRuns(List<Run> runs) throws DatabaseException {
-    throw new UnsupportedOperationException("hw3: TODO");
+    Queue<Pair<Record, Integer>> pq = new PriorityQueue<>(
+        ((o1, o2) -> comparator.compare(o1.getFirst(), o2.getFirst())));
 
+    // An iterator for each of the runs
+    List<Iterator<Record>> li = new ArrayList<>();
+    int i = 0;
+
+    // Prime the queue with the first element from each run
+    for (Run r : runs) {
+      li.add(i, r.iterator());
+
+      if (li.get(i).hasNext()) {
+        pq.add(new Pair<>(li.get(i).next(), i));
+        i++;
+      }
+    }
+
+    // Consume all records from runs and emit them in globally-sorted order.
+    // This routine has the capability of consuming constant space, that
+    // depends on how Run.addRecord() behaves (specifically whether it emits
+    // elements directly to out of core storage)). As is, mergeSortedRuns()
+    // has a ~constant (and small) working set, we only hold at most
+    // runs.length() elements in memory at a time (NOT the total length of all
+    // the contents of the runs).
+    Run r = new Run();
+    while (pq.size() > 0) {
+
+      Pair<Record, Integer> nextRecord = pq.remove();
+      r.addRecord(nextRecord.getFirst().getValues());
+
+      // Pull a new record from that run's iterator if non-empty
+      if (li.get(nextRecord.getSecond()).hasNext()) {
+        pq.add(new Pair<>(li.get(nextRecord.getSecond()).next(),
+                          nextRecord.getSecond()));
+      }
+    }
+
+    return r;
   }
 
   /**
@@ -95,8 +142,14 @@ public class SortOperator  {
    * of the input runs at a time.
    */
   public List<Run> mergePass(List<Run> runs) throws DatabaseException {
-    throw new UnsupportedOperationException("hw3: TODO");
+    List<Run> out = new ArrayList<>();
+    int step = numBuffers - 1;
 
+    for (int i = 0; i < runs.size(); i += step) {
+      out.add(mergeSortedRuns(runs.subList(i, i+step)));
+    }
+
+    return out;
   }
 
 
@@ -106,22 +159,30 @@ public class SortOperator  {
    * Returns the name of the table that backs the final run.
    */
   public String sort() throws DatabaseException {
-    throw new UnsupportedOperationException("hw3: TODO");
+    BacktrackingIterator<Page> pageIter = transaction.getPageIterator(tableName);
+    pageIter.next(); // consume header page.
+    List<Run> sortedRuns = new ArrayList<>();
 
-  }
+    while (pageIter.hasNext()) {
+      Iterator<Record> bIter =
+          transaction.getBlockIterator(tableName, pageIter, numBuffers-1);
+      List<Record> records = new ArrayList<>();
+      bIter.forEachRemaining(records::add);
+      Run unsortedRun = new Run() {{
+        addRecords(records);
+      }};
 
-
-  private class RecordPairComparator implements Comparator<Pair<Record, Integer>> {
-    public int compare(Pair<Record, Integer> o1, Pair<Record, Integer> o2) {
-      return SortOperator.this.comparator.compare(o1.getFirst(), o2.getFirst());
-
+      sortedRuns.add(sortRun(unsortedRun));
     }
+
+    while (sortedRuns.size() > 1) {
+      sortedRuns = mergePass(sortedRuns);
+    }
+
+    return sortedRuns.get(0).tableName();
   }
 
   public Run createRun() throws DatabaseException {
     return new Run();
   }
-
-
-
 }
