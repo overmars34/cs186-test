@@ -1,36 +1,26 @@
 package edu.berkeley.cs186.database.table.stats;
 
+import edu.berkeley.cs186.database.DatabaseException;
+import edu.berkeley.cs186.database.TestUtils;
+import edu.berkeley.cs186.database.databox.BoolDataBox;
+import edu.berkeley.cs186.database.databox.FloatDataBox;
+import edu.berkeley.cs186.database.databox.IntDataBox;
+import edu.berkeley.cs186.database.databox.StringDataBox;
+import edu.berkeley.cs186.database.query.QueryPlan.PredicateOperator;
+import edu.berkeley.cs186.database.table.Record;
+import edu.berkeley.cs186.database.table.Schema;
+import edu.berkeley.cs186.database.table.Table;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 import java.util.Random;
 
-import edu.berkeley.cs186.database.table.stats.Histogram;
-import edu.berkeley.cs186.database.TestUtils;
-import edu.berkeley.cs186.database.table.Schema;
-import edu.berkeley.cs186.database.DatabaseException;
-import edu.berkeley.cs186.database.query.QueryPlan.PredicateOperator;
-import edu.berkeley.cs186.database.query.QueryPlan;
-
-import edu.berkeley.cs186.database.table.Table;
-import edu.berkeley.cs186.database.table.Record;
-import edu.berkeley.cs186.database.databox.IntDataBox;
-import edu.berkeley.cs186.database.databox.StringDataBox;
-import edu.berkeley.cs186.database.databox.FloatDataBox;
-import edu.berkeley.cs186.database.databox.BoolDataBox;
-
-import static org.junit.Assert.*;
-import org.junit.After;
+import static org.junit.Assert.assertEquals;
 
 
 public class TestHistogram {
@@ -150,7 +140,7 @@ public class TestHistogram {
     h.buildHistogram(table, 1); //build on the integer col
 
     assertEquals(h.getCount(),101); //count updated properly
-    
+
     assertEquals(h.getNumDistinct(),1); //distinct count updated properly
 
     for (int i=0; i<9; i++)
@@ -230,7 +220,7 @@ public class TestHistogram {
 
     //creates a histogram of 10 buckets
     Histogram h = new Histogram(10);
-    h.buildHistogram(table, 1); //build on the integery col
+    h.buildHistogram(table, 1); //build on the integer col
 
     //Should return [0.1,1,1,1,1,1,1,1,1,1,1]
     float [] result = h.filter(PredicateOperator.GREATER_THAN, new IntDataBox(9));
@@ -274,9 +264,9 @@ public class TestHistogram {
 
     //creates a histogram of 10 buckets
     Histogram h = new Histogram(10);
-    h.buildHistogram(table, 1); //build on the integery col
+    h.buildHistogram(table, 1); //build on the integer col
 
-    //Should return [0.9,0,0,0,0,0,0,0,0,0,0] 
+    //Should return [0.9,0,0,0,0,0,0,0,0,0,0]
     float [] result = h.filter(PredicateOperator.LESS_THAN, new IntDataBox(9));
     assert(Math.abs(result[0]-0.9) < 0.00001);
     for (int i=1; i<10; i++)
@@ -303,7 +293,4 @@ public class TestHistogram {
       assert(Math.abs(result[i]-0.0) < 0.00001);
 
   }
-
-
-
 }

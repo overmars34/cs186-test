@@ -1,13 +1,13 @@
 package edu.berkeley.cs186.database.table.stats;
 
-import java.util.HashSet;
-
 import edu.berkeley.cs186.database.databox.DataBox;
-import edu.berkeley.cs186.database.query.QueryPlan.PredicateOperator;
-import edu.berkeley.cs186.database.DatabaseException;
-import edu.berkeley.cs186.database.table.Table;
-import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.databox.TypeId;
+import edu.berkeley.cs186.database.query.QueryPlan.PredicateOperator;
+import edu.berkeley.cs186.database.table.Record;
+import edu.berkeley.cs186.database.table.RecordIterator;
+import edu.berkeley.cs186.database.table.Table;
+
+import java.util.stream.IntStream;
 
 /**
  * A histogram maintains approximate statistics about a (potentially large) set
@@ -48,7 +48,7 @@ import edu.berkeley.cs186.database.databox.TypeId;
  * b.getEnd(); //returns 100.0
  * b.increment(15);// adds the value 15 to the bucket
  * b.getCount();//returns the number of items added to the bucket
- * b.getDistinctCount();//returns the approximate number of distinct iterms added to the bucket
+ * b.getDistinctCount();//returns the approximate number of distinct items added to the bucket
  *
  * 
  */
@@ -120,18 +120,59 @@ public class Histogram {
    *  Edge cases: width = 0, put an item only in the last bucket.
    *              final bucket is inclusive on the last value.
    */
-  public void buildHistogram(Table table, int attribute){
+  public void buildHistogram(Table table, int attribute) {
+    //1. first calculate the min and the max values
+    RecordIterator records = table.iterator();
+    if (!records.hasNext()) {
+      System.err.println("WARNING: empty table building histogram");
+      return;
+    }
 
-      // TODO: HW4 implement
+    minValue = quantization(records.next(), attribute);
+    maxValue = minValue;
+    while (records.hasNext()) {
+      float value = quantization(records.next(), attribute);
+      minValue = Math.min(minValue, value);
+      maxValue = Math.max(maxValue, value);
+    }
 
-      //1. first calculate the min and the max values
+    //2. calculate the width of each bin
+    width = (maxValue - minValue) / numBuckets;
 
-      //2. calculate the width of each bin
-    
-      //3. create each bucket object
-      
-      //4. populate the data using the increment(value) method
-      
+    //3. create each bucket object
+    for (int i = 0; i < numBuckets; i++) {
+      buckets[i] = new Bucket<>(i * width, i * width + width);
+    }
+
+    //4. populate the data using the increment(value) method
+    records = table.iterator();
+    while (records.hasNext()) {
+      float value = quantization(records.next(), attribute);
+      buckets[getBucketForValue(value)].increment(value);
+    }
+  }
+
+  /**
+   * Allow the last bucket to be right-inclusive( [,] ). All others are [,).
+   * If width == 0, everything goes in the last bucket.
+   */
+  private int getBucketForValue(float value) {
+
+    // These values will probably never show up for real. If that's not the
+    // case, this should be replaced with something more Golang-like (i.e.,
+    // private (int, err) getBucketForValue() ... if err != null. Or throw an
+    // exception (ew).
+    if (value < minValue) {
+      return Integer.MIN_VALUE;
+    }
+
+    if (value > maxValue) {
+      return Integer.MAX_VALUE;
+    }
+
+    return width == 0
+           ? numBuckets - 1
+           : Math.min(numBuckets - 1, (int) (value / width));
   }
 
 
@@ -151,7 +192,7 @@ public class Histogram {
   public int getCount(){
     int sum = 0;
     for (int i=0; i<this.numBuckets; i++)
-      sum += this.buckets[i].getCount(); 
+      sum += this.buckets[i].getCount();
 
     return sum;
   }
@@ -292,15 +333,32 @@ public class Histogram {
   //Operations To Implement//////////////////////////////////////////////////////////////
 
   /**
-   *  Given a quantized value, scale the bucket that contains the value by 1/distinctCount,
-   *  and set all other values to 0.
-   */ 
-  private float [] allEquality(float qvalue){
-    float [] result = new float[this.numBuckets];
-    
-    // TODO: HW4 implement;
+   * An annoyingly useless function to convert a double[] to float[] since
+   * Java's stream() is a little half-baked.
+   */
+  private float[] toFloatArray(double[] arr) {
+    float result[] = new float[numBuckets];
+    for (int i = 0; i < arr.length; i++) {
+      result[i] = (float)arr[i];
+    }
 
     return result;
+  }
+
+
+  /**
+   *  Given a quantized value, scale the bucket that contains the value by 1/distinctCount,
+   *  and set all other values to 0.
+   */
+  private float[] allEquality(float qvalue) {
+    final int bucket = getBucketForValue(qvalue);
+
+    return toFloatArray(
+        IntStream.range(0, numBuckets)
+                 .mapToDouble(i -> i == bucket && buckets[i].getCount() > 0
+                                   ? 1.0 / buckets[i].getCount()
+                                   : 0d)
+                 .toArray());
   }
 
 
@@ -309,27 +367,35 @@ public class Histogram {
    *  and set all other values to 1.
    */ 
   private float [] allNotEquality(float qvalue){
-    float [] result = new float[this.numBuckets];
-    
+    int bucket = getBucketForValue(qvalue);
 
-    // TODO: HW4 implement;
-
-
-    return result;
+    return toFloatArray(
+        IntStream.range(0, numBuckets)
+                 .mapToDouble(i -> i == bucket && buckets[i].getCount() > 0
+                                   ? 1 - (1.0 / buckets[i].getCount())
+                                   : 1)
+                 .toArray());
   }
 
 
   /**
-   *  Given a quantized value, scale the bucket that contains the value by (end - q)/width,
-   *  and set all other buckets to 1 if higher and 0 if lower.
+   * Given a quantized value, scale the bucket that contains the value by (end - q)/width,
+   * and set all other buckets to 1 if higher and 0 if lower.
    */
   private float [] allGreaterThan(float qvalue){
-    
-    float [] result = new float[this.numBuckets];
+    int bucket = getBucketForValue(qvalue);
 
-    // TODO: HW4 implement;
-
-    return result;
+    return toFloatArray(
+        IntStream.range(0, numBuckets)
+                 .mapToDouble(i -> {
+                   if (i == bucket && buckets[i].getCount() > 0) {
+                     // Matched bucket
+                     return (buckets[i].getEnd() - qvalue) / width;
+                   } else {
+                     return i < bucket ? 0 : 1;
+                   }
+                 })
+                 .toArray());
   }
 
 
@@ -338,15 +404,20 @@ public class Histogram {
    *  and set all other buckets to 1 if lower and 0 if higher.
    */
   private float [] allLessThan(float qvalue){
-    
-    float [] result = new float[this.numBuckets];
+    int bucket = getBucketForValue(qvalue);
 
-    // TODO: HW4 implement;
-
-    return result;
+    return toFloatArray(
+        IntStream.range(0, numBuckets)
+                 .mapToDouble(i -> {
+                   if (i == bucket && buckets[i].getCount() > 0) {
+                     // Matched bucket
+                     return (qvalue - buckets[i].getStart()) / width;
+                   } else {
+                     return i < bucket ? 1 : 0;
+                   }
+                 })
+                 .toArray());
   }
-
-
 
 
 

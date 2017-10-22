@@ -8,3 +8,26 @@ src/.idea/*
 *.iml
 # Ignore all OSX hidden files
 *.DS_Store
+# Ignore all maven build and test files
+target/*
+*.class
+*.swp
+*.swo
+# Ignore all OSX hidden files
+*.DS_Store
+target/
+
+# IntelliJ stuff...
+# User-specific stuff:
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/dictionaries
+
+# Sensitive or high-churn files:
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.xml
+.idea/**/dataSources.local.xml
+.idea/**/sqlDataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml

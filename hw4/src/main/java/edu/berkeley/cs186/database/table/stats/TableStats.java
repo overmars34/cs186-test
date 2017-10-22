@@ -76,7 +76,6 @@ public class TableStats {
     int count = 0;
     int totalRecords = 0;
     for (Type t : tableSchema.getFieldTypes()) {
-
         Histogram h = new Histogram(buckets);
         h.buildHistogram(tab, count);
         this.histograms.add(h);
