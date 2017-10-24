@@ -1,13 +1,5 @@
 package edu.berkeley.cs186.database.table;
 
-import java.util.Arrays;
-import java.io.Closeable;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.TreeSet;
-
 import edu.berkeley.cs186.database.DatabaseException;
 import edu.berkeley.cs186.database.common.ArrayBacktrackingIterator;
 import edu.berkeley.cs186.database.common.BacktrackingIterator;
@@ -15,8 +7,14 @@ import edu.berkeley.cs186.database.common.Bits;
 import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.io.Page;
 import edu.berkeley.cs186.database.io.PageAllocator;
-import edu.berkeley.cs186.database.io.PageAllocator.PageIterator;
 import edu.berkeley.cs186.database.table.stats.TableStats;
+
+import java.io.Closeable;
+import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.TreeSet;
 
 /**
  * # Overview
