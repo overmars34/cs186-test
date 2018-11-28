@@ -30,7 +30,7 @@ order by birthyear asc
 
 -- Question 1iv
 CREATE VIEW q1iv(birthyear, avgheight, count) AS
-select birthyear, avg(height), count(*)
+select birthyear, avg(height) as avgheight, count(*)
 from master
 group by birthyear
 having avg(height) > 70
@@ -70,38 +70,77 @@ order by c.playerid desc, c.schooid asc
 
 -- Question 3i
 CREATE VIEW q3i(playerid, namefirst, namelast, yearid, slg) AS
-select b.playerid, m.namefirst, m.namelast, b.yearid,  b.h, b.h2b, b.h3b, b.hr, b.ab, (b.h + 2*b.h2b + 3*b.h3b +4*hr)/b.ab
+select b.playerid, m.namefirst, m.namelast, b.yearid,
+cast((b.h + 2*b.h2b + 3*b.h3b +4*hr) as decimal)/b.ab as slg
 from batting b, master m
 where b.playerid = m.playerid
 and b.ab > 50
+order by slg desc, b.yearid asc, b.playerid asc
+limit 10
 ;
 
 -- Question 3ii
 CREATE VIEW q3ii(playerid, namefirst, namelast, lslg) AS
-  
+select b.playerid, m.namefirst, m.namelast,
+cast(sum(b.h + 2*b.h2b + 3*b.h3b + 4*hr) as decimal)/sum(b.ab) as lslg
+from batting b, master m
+where b.playerid = m.playerid
+group by b.playerid, m.namefirst, m.namelast
+having sum(b.ab) > 50
+order by lslg desc, b.playerid asc
+limit 10
 ;
 
 -- Question 3iii
 CREATE VIEW q3iii(namefirst, namelast, lslg) AS
-
+select m.namefirst, m.namelast, a.lslg
+from (select b.playerid,
+cast(sum(b.h + 2*b.h2b + 3*b.h3b + 4*hr) as decimal)/sum(b.ab) as lslg,
+(select cast(sum(b1.h + 2*b1.h2b + 3*b1.h3b + 4*b1.hr) as decimal)/sum(b1.ab) from batting b1 where b1.playerid = 'mayswi01') as mlslg
+from batting b
+where b.playerid = m.playerid
+group by b.playerid, m.namefirst, m.namelast
+having sum(b.ab) > 50) a, master m
+where a.playerid = m.playerid
+and a.lslg >  a.mlslg
+order by a.lslg desc
 ;
 
 -- Question 4i
 CREATE VIEW q4i(yearid, min, max, avg, stddev) AS
-  
+select a.yearid, a.minslr, a.maxslr, a.avgslr,
+(select sqrt(sum(power((s1.salary - avgslr),2))/rowcount) from salaries s1 where s1.yearid = a.yearid) as stddev
+from (select s.yearid, min(s.salary) as minslr, max(s.salary) as maxslr, avg(s.salary) as avgslr, count(*) as rowcount from salaries s group by s.yearid) a
+order by a.yearid asc 
 ;
 
 -- Question 4ii
 CREATE VIEW q4ii(binid, low, high, count) AS
-
+select t.*,
+(select count(*) from salaries where yearid = 2016 and salary between t.low and t.high)
+from (select generate_series(0,9) as binid,
+generate_series(0,9) * cast((max(salary)-min(salary) as decimal)/10 + min(salary) as low,
+generate_series(1,10) * cast((max(salary)-min(salary) as decimal)/10 + min(salary) as high
+from salaries
+where yearid = 2016) t
 ;
 
 -- Question 4iii
 CREATE VIEW q4iii(yearid, mindiff, maxdiff, avgdiff) AS
- 
+select * 
+from (select a.yearid,
+(a.curr_min - lag(a.curr_min) over (order by a.yearid asc)) as mindiff,
+(a.curr_max - lag(a.curr_max) over (order by a.yearid asc)) as maxdiff,
+(a.curr_avg - lag(a.curr_avg) over (order by a.yearid asc)) as avgdiff
+from (select yearid, min(salary) as curr_min, max(salary) as curr_max, avg(salary) as curr_avg from salaries group by yearid) a) b
+where b.yearid > 1985
 ;
 
 -- Question 4iv
 CREATE VIEW q4iv(playerid, namefirst, namelast, salary, yearid) AS
-  
+select s.playerid, m.namefirst, m.namelast, s.salary
+from salaries s, master m
+where s.playerid = m.playerid
+and s.yearid in (2000, 2001)
+and s.salary = (select max(s1.salary) from salaries s1 where s1.yearid = s.yearid)
 ;
