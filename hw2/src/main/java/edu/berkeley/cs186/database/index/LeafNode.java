@@ -133,20 +133,38 @@ class LeafNode extends BPlusNode {
   // See BPlusNode.get.
   @Override
   public LeafNode get(DataBox key) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+     return this;
   }
 
   // See BPlusNode.getLeftmostLeaf.
   @Override
   public LeafNode getLeftmostLeaf() {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+	  return this;
   }
 
   // See BPlusNode.put.
   @Override
   public Optional<Pair<DataBox, Integer>> put(DataBox key, RecordId rid)
       throws BPlusTreeException {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    if(keys.indexOf(key) > -1) 
+    	return Optional.empty();
+    else {
+    	if(keys.size() < 2*metadata.getOrder()) {
+			for(int i=0;i<keys.size();i++) {
+				if(key.compareTo(keys.get(i)) < 0) {
+					keys.add(i,  key);
+	    			rids.add(i,  rid);
+				} else {
+	    			keys.add(key);
+	        		rids.add(rid);
+				}
+			}
+    	} else {
+    		
+    	}
+    	sync();
+    	//return
+    }
   }
 
   // See BPlusNode.remove.
@@ -328,7 +346,25 @@ class LeafNode extends BPlusNode {
    * meta.getAllocator().
    */
   public static LeafNode fromBytes(BPlusTreeMetadata metadata, int pageNum) {
-    throw new UnsupportedOperationException("TODO(hw2): implement.");
+    Page page = metadata.getAllocator().fetchPage(pageNum);
+    ByteBuffer buf = page.getByteBuffer();
+
+    assert(buf.get() == (byte) 1);
+    
+    int rightSiblingInt = buf.getInt();
+    Optional<Integer> rightSibling = Optional.empty();
+    if (rightSiblingInt != -1 )
+    	rightSibling = Optional.of(rightSiblingInt);
+    
+    List<DataBox> keys = new ArrayList<>();
+    List<RecordId> rids = new ArrayList<>();
+    
+    int n = buf.getInt();
+    for (int i = 0; i < n; ++i) {
+      keys.add(DataBox.fromBytes(buf, metadata.getKeySchema()));
+      rids.add(RecordId.fromBytes(buf));     
+    }
+    return new LeafNode(metadata, pageNum, keys, rids, rightSibling);
   }
 
   // Builtins //////////////////////////////////////////////////////////////////
